@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/InterfaceLIFTDownloader.iml" filepath="$PROJECT_DIR$/.idea/InterfaceLIFTDownloader.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/InterfaceLIFTScraper.iml" filepath="$PROJECT_DIR$/.idea/InterfaceLIFTScraper.iml" />
     </modules>
   </component>
 </project>
