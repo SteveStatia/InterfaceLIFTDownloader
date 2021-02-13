@@ -19,13 +19,12 @@ wallpaper_links = []
 selected_resolutions = ["1280x720 - 720p HDTV", "1920x1080 - 1080p HDTV", "2560x1440"]
 wallpaper_errors = []
 MAX_RES_SELECTIONS = 3
-progressbar_position = 0
 TOTAL_PAGES = 394
-pageUrl = "http://interfacelift.com/wallpaper/downloads/date/any/index"  # + pageNUmber + ".html"
-urlSuffix = ".html"
+BASE_WALLPAPER_BROWSE_URL = "http://interfacelift.com/wallpaper/downloads/date/any/index"  # + pageNUmber + ".html"
+BROWSE_URL_SUFFIX = ".html"
 
 # example wallpaper link https://interfacelift.com/wallpaper/7yz4ma1/03144_albionfalls_2560x1440.jpg
-baseWallpaperUrl = "https://interfacelift.com/wallpaper/7yz4ma1/0"
+BASE_WALLPAPER_IMAGE_URL = "https://interfacelift.com/wallpaper/7yz4ma1/0"
 res1080 = "_1920x1080.jpg"
 res1440 = "_2560x1440.jpg"
 
@@ -44,10 +43,16 @@ def build_dictionary_from_file():
 
 
 def build_image_url_without_res(image_name, image_id):
-    return baseWallpaperUrl + image_id + "_" + image_name
+    return BASE_WALLPAPER_IMAGE_URL + image_id + "_" + image_name
 
 
 def download_wallpaper_to_file(wallpaper_url, picture_info, session):
+    image_request = session.get(wallpaper_url, stream=True)
+    if image_request.status_code == 200:
+        if not os.path.exists(("/Wallpapers/")):
+            print("WPEREDEF")
+
+
     # wallpaper_url = build_image_url(pictureInfo[0], pictureInfo[2])
     image_data = session.get(wallpaper_url, stream=True)
     if image_data.status_code == 200:
@@ -67,7 +72,7 @@ def download_wallpaper_to_file(wallpaper_url, picture_info, session):
 
 def scrape_wallpaper_page(page_num, session):
     page_num_string = str(page_num)
-    wallpaper_url = pageUrl + page_num_string + urlSuffix
+    wallpaper_url = BASE_WALLPAPER_BROWSE_URL + page_num_string + BROWSE_URL_SUFFIX
 
     response = session.get(wallpaper_url, verify=False)
     if not response.status_code == 200:
@@ -205,6 +210,8 @@ def gui():
     fetch_urls_button.grid(column=2, row=3, pady=(10))
 
     def start_command():
+        for link in range(len(wallpaper_links)):
+
         progressbar_var = DoubleVar()
         progressbar = Progressbar(tk, variable=progressbar_var, maximum=100, length=200)
         progressbar.grid(column=2, row=6)
