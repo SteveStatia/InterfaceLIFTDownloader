@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter.ttk import *
 
 import os
+import sys
 import requests
 import screeninfo
 import urllib3
@@ -174,9 +175,15 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
     tk.mainloop()
 
 
+def resource_path(relative_path):
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return relative_path
+
+
 def build_dictionary_from_file():
     resolution_dictionary = {}
-    with open("res_list.txt") as file:
+    with open(resource_path("res_list.txt")) as file:
         # Skip the first line as it is just labels
         file.readline()
         for line in file:
@@ -211,7 +218,7 @@ def download_wallpaper_to_file(session, wallpaper_url, res, error_arr):
             print("{0} wallpaper folder does not exist... creating {0} folder.".format(res))
             os.makedirs(file_path)
 
-        with open(file_name, 'wb') as file:
+        with open(resource_path(file_name), 'wb') as file:
             try:
                 file.write(image_request.content)
                 print("{0} has been downloaded.".format(file_name))
@@ -227,7 +234,7 @@ def main():
     res_dict = build_dictionary_from_file()
     selected_resolutions = get_user_screen_res(res_dict)
 
-    links_file = open("wallpaper_links_without_res.txt")
+    links_file = open(resource_path("wallpaper_links_without_res.txt"))
     wallpaper_links = links_file.read().splitlines()
 
     wallpaper_errors = []
@@ -249,8 +256,6 @@ if __name__ == '__main__':
 # DEVELOPER MODE FUNCTIONS TO BE ADDED LATER
 def build_image_url_without_res(image_name, image_id):
     return "{0}{1}_{2}".format(BASE_WALLPAPER_IMAGE_URL, image_id, image_name)
-
-
 def scrape_page_for_wallpaper_urls(page_num, session, error_arr):
     newly_scraped_wallpaper_links = []
     wallpaper_url = BASE_WALLPAPER_BROWSE_URL + str(page_num) + HTML_SUFFIX
@@ -274,15 +279,11 @@ def scrape_page_for_wallpaper_urls(page_num, session, error_arr):
 
         print("{0} has been completed.".format(wallpaper_url))
     return newly_scraped_wallpaper_links
-
-
 def scrape_all_pages_for_wallpaper_urls():
     for page_num in range(1, TOTAL_PAGES):
         scrape_page_for_wallpaper_urls(page_num)
-
-
 def save_wallpaper_links_to_file(wallpaper_links_arr):
-    with open("wallpaper_links_without_res.txt", 'w') as text_file:
+    with open(resource_path("wallpaper_links_without_res.txt"), 'w') as text_file:
         for index in wallpaper_links_arr:
             text_file.write("".join(index) + "\n")
 # END OF DEVELOPER FUNCTIONS
