@@ -1,4 +1,4 @@
-res_name:res_size
+res_label:res_dimensions
 4096x2304:4096x2304
 3840x2160 - 4k UHDTV:3840x2160
 3200x1800:3200x1800
