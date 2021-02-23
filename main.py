@@ -4,8 +4,12 @@ from tkinter.ttk import *
 import os
 import sys
 import requests
+import time
+import concurrent.futures.thread
+import concurrent.futures
 import screeninfo
 import urllib3
+from datetime import timedelta
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -46,34 +50,10 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
     tk.geometry("400x300")
     tk.resizable(False, False)
 
-    selected_resolutions_list_box = Listbox(tk, width=40, height=10)
-    selected_resolutions_list_box.grid(column=2, row=1)
-    # Populate the ListBox with the preset resolutions (maybe change to just current res in the future)
-    for x in selected_resolutions_arr:
-        selected_resolutions_list_box.insert('anchor', x)
-
-    res_dropdown = Combobox(tk, state="readonly", width=30)
-    res_dropdown['values'] = list(resolution_dictionary.keys())
-    res_dropdown.current(0)
-    res_dropdown.grid(column=2, row=2)
-
-    add_button = Button(master=tk, text="Add", command=lambda: add_res_to_list())
-    add_button.grid(column=1, row=3)
-
-    # fetch_urls_button = Button(master=tk, text="Refresh", command=lambda: refresh_command())
-    # fetch_urls_button.grid(column=2, row=3, pady=(10))
-
-    remove_button = Button(master=tk, text="Remove", command=lambda: remove_res_from_list())
-    remove_button.grid(column=3, row=3)
-
-    clear_button = Button(master=tk, text="Clear List", command=lambda: clear_list())
-    clear_button.grid(column=3, row=4)
-
-    start_button = Button(master=tk, text="Start", command=lambda: start_command(), width=20)
-    start_button.grid(column=2, row=7)
-
     def add_res_to_list():
-        if res_dropdown.get() in selected_resolutions_arr or len(selected_resolutions_arr) >= MAX_RES_SELECTIONS:
+        res_exists = res_dropdown.get() in selected_resolutions_arr
+        res_limit_exceeded = len(selected_resolutions_arr) >= MAX_RES_SELECTIONS
+        if res_exists or res_limit_exceeded:
             print("Resolution is already selected.")
         else:
             selected_resolutions_arr.append(res_dropdown.get())
@@ -99,7 +79,7 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
     #         print("Window closed from X button")
     #
     #     popup = Toplevel(tk)
-    #     popup.protocol('WM_DELETE_WINDOW', lambda: close_window())
+    #     popup.protocol('WM_DELETE_WINDOW', lambda: close_window)
     #     popup.grab_set()
     #     Label(popup, text="Files being downloaded").grid(row=0, column=0)
     #     Label(popup, text="THE POPUP WINDOW FOR REFRESH").grid(row=1, column=0)
@@ -124,6 +104,7 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
 
     def start_command():
         if len(selected_resolutions_arr) >= 1:
+            start_time = time.perf_counter()
             start_button.destroy()
             add_button['state'] = DISABLED
             clear_button['state'] = DISABLED
@@ -136,15 +117,28 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
                 start_command.downloading = False
                 stop_button.destroy()
                 progressbar.destroy()
-                new_start_button = Button(master=tk, text="Start", command=lambda: start_command(), width=20)
+                new_start_button = Button(master=tk, text="Start", command=start_command, width=20)
                 new_start_button.grid(column=2, row=7)
                 add_button['state'] = NORMAL
                 clear_button['state'] = NORMAL
                 remove_button['state'] = NORMAL
-                res_dropdown['state'] = NORMAL
+                res_dropdown['state'] = 'readonly'
                 selected_resolutions_list_box['state'] = NORMAL
+                for f in futures:
+                    f.cancel()
+                tk.after_cancel(gui.after_id)
 
-            stop_button = Button(master=tk, text="Cancel", command=lambda: stop_command(), width=20)
+            timer = Label(master=tk, text="Runtime: ")
+            timer.grid(column=2, row=5)
+
+            gui.after_id = None
+
+            def update_timer():
+                timer.configure(text="Runtime: {0}".format(str(timedelta(seconds=time.perf_counter() - start_time)).split('.', 2)[0]))
+                gui.after_id = tk.after(1000, update_timer)
+            update_timer()
+
+            stop_button = Button(master=tk, text="Cancel", command=stop_command, width=20)
             stop_button.grid(column=2, row=7)
 
             progressbar_var = DoubleVar()
@@ -152,25 +146,56 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
             progressbar.grid(column=2, row=6)
 
             progress = 0
-            progress_step = float(100.0 / TOTAL_WALLPAPERS * len(selected_resolutions_arr))
-            for link in wallpaper_links_arr:
-                if not start_command.downloading:
-                    break
-                for res in selected_resolutions_arr:
+            progress_step = float(100.0 / (TOTAL_WALLPAPERS * len(selected_resolutions_arr)))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures = []
+                for link in wallpaper_links_arr:
                     if not start_command.downloading:
                         break
-                    tk.update()
-                    resolution = str(resolution_dictionary.get(res))
-                    download_wallpaper_to_file(session, link, resolution, error_arr)
+                    for res in selected_resolutions_arr:
+                        if not start_command.downloading:
+                            break
+                        resolution = str(resolution_dictionary.get(res))
+                        futures.append(executor.submit(download_wallpaper_to_file, link, session, resolution, error_arr))
+                for future in concurrent.futures.as_completed(futures):
                     progress += progress_step
                     progressbar_var.set(progress)
+                    tk.update()
+                    print(future.result())
             stop_command()
+
         else:
             popup = Toplevel(height=500, width=600)
             popup.resizable(False, False)
             popup.grab_set()
             Label(popup, text="Please select at least one resolution.").pack()
-            Button(master=popup, text="OK", command=lambda: popup.destroy(), width=20).pack()
+            Button(master=popup, text="OK", command=lambda: popup.destroy, width=20).pack()
+
+    selected_resolutions_list_box = Listbox(tk, width=40, height=10)
+    selected_resolutions_list_box.grid(column=2, row=1)
+    for x in selected_resolutions_arr:
+        selected_resolutions_list_box.insert('anchor', x)
+
+    res_dropdown = Combobox(tk, state="readonly", width=30)
+    res_dropdown['values'] = list(resolution_dictionary.keys())
+    res_dropdown.current(0)
+    res_dropdown.grid(column=2, row=2)
+
+    add_button = Button(master=tk, text="Add", command=add_res_to_list)
+    add_button.grid(column=1, row=3)
+
+    # fetch_urls_button = Button(master=tk, text="Refresh", command=refresh_command)
+    # fetch_urls_button.grid(column=2, row=3, pady=(10))
+
+    remove_button = Button(master=tk, text="Remove", command=remove_res_from_list)
+    remove_button.grid(column=3, row=3)
+
+    clear_button = Button(master=tk, text="Clear List", command=clear_list)
+    clear_button.grid(column=3, row=4)
+
+    start_button = Button(master=tk, text="Start", command=start_command, width=20)
+    start_button.grid(column=2, row=7)
 
     tk.mainloop()
 
@@ -203,7 +228,7 @@ def get_user_screen_res(res_dict):
     return user_resolutions
 
 
-def download_wallpaper_to_file(session, wallpaper_url, res, error_arr):
+def download_wallpaper_to_file(wallpaper_url, session, res, error_arr):
     file_path = "{0}/Wallpapers/{1}/".format(os.getcwd(), res)
     image_file_info = wallpaper_url[44:]
     file_name = "{0}{1}_{2}.jpg".format(file_path, image_file_info, res)
@@ -221,13 +246,13 @@ def download_wallpaper_to_file(session, wallpaper_url, res, error_arr):
         with open(resource_path(file_name), 'wb') as file:
             try:
                 file.write(image_request.content)
-                print("{0} has been downloaded.".format(file_name))
+                return "{0} has been downloaded.".format(file_name)
             except Exception as e:
                 error_message = "Error downloading file. " + e.errno
-                print(error_message)
+                return error_message
     else:
-        print("'{0}' resolution is not supported for the wallpaper {1}.".format(res, image_file_info))
         error_arr.append([appended_url, image_request.status_code])
+        return "'{0}' resolution is not supported for the wallpaper {1}.".format(res, image_file_info)
 
 
 def main():
@@ -240,12 +265,14 @@ def main():
     wallpaper_errors = []
 
     session = requests.Session()
-    retry = Retry(connect=3, backoff_factor=0.5)
+    status_force_retry_list = [503, 502, 504, 500]
+    retry = Retry(connect=3, backoff_factor=0.3, status_forcelist=status_force_retry_list)
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
 
-    gui(session, wallpaper_links, res_dict, selected_resolutions, wallpaper_errors)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        executor.submit(gui, session, wallpaper_links, res_dict, selected_resolutions, wallpaper_errors)
     print(wallpaper_errors)
 
 
