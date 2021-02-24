@@ -103,6 +103,7 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
     #     # popup.destroy()
 
     def start_command():
+        downloaded = 0
         if len(selected_resolutions_arr) >= 1:
             start_time = time.perf_counter()
             start_button.destroy()
@@ -129,9 +130,18 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
                 tk.after_cancel(gui.after_id)
 
             timer = Label(master=tk, text="Runtime: ")
-            timer.grid(column=2, row=5)
+            timer.grid(column=2, row=4)
+
+            total_downloaded = Label(master=tk, text="{}/{} wallpapers downloaded.".format(0, 0))
+            total_downloaded.grid(column=2, row=5)
 
             gui.after_id = None
+            gui.total_id = None
+
+            def update_count():
+                total_downloaded.configure(text="{}/{} wallpapers downloaded.".format(downloaded, TOTAL_WALLPAPERS * len(selected_resolutions_arr)))
+                gui.total_id = tk.after(500, update_count)
+            update_count()
 
             def update_timer():
                 timer.configure(text="Runtime: {0}".format(str(timedelta(seconds=time.perf_counter() - start_time)).split('.', 2)[0]))
@@ -163,6 +173,8 @@ def gui(session, wallpaper_links_arr, resolution_dictionary, selected_resolution
                     progressbar_var.set(progress)
                     tk.update()
                     print(future.result())
+                    if " has been downloaded" in future.result():
+                        downloaded += 1
             stop_command()
 
         else:
